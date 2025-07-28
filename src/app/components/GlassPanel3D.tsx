@@ -1206,7 +1206,6 @@ const MeasurementLine = ({ start, end, text, color, fontSize, textPosition, text
         anchorY="middle"
         outlineWidth={0.005}
         outlineColor="#ffffff"
-        background
         backgroundOpacity={0.7}
         backgroundColor="#ffffff"
         padding={0.03}

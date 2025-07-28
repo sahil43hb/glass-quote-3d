@@ -1112,6 +1112,7 @@ interface GlassPanelProps {
   hingeSide?: 'left' | 'right';
   notchConfig?: NotchConfig | null;
   panelType?: 'front' | 'return';
+  type?: "panel" | "door"; // Added 'type' property
 }
 
 interface Config {
@@ -1150,8 +1151,8 @@ interface MeasurementLineProps {
   start: Vector3Tuple;
   end: Vector3Tuple;
   text: string;
-  color: string;
   type: string;
+  color: string;
   fontSize: number;
   textPosition: Vector3Tuple;
   textRotation: EulerTuple;
@@ -1609,6 +1610,8 @@ const Scene = ({ config, isAnimating, showMeasurements }: SceneProps) => {
           side: config.notchSide,
           distanceFromBottom: config.notchDistanceFromBottom,
         } : null,
+        glassThickness: config.glassThickness,
+        glassType: config.glassType,
       });
     }
 
@@ -1632,6 +1635,8 @@ const Scene = ({ config, isAnimating, showMeasurements }: SceneProps) => {
           side: config.notchSide,
           distanceFromBottom: config.notchDistanceFromBottom,
         } : null,
+        glassThickness: config.glassThickness,
+        glassType: config.glassType,
       });
 
       if (showMeasurements) {
@@ -1693,6 +1698,8 @@ const Scene = ({ config, isAnimating, showMeasurements }: SceneProps) => {
         rotation: [0, 0, 0],
         isOpen: isAnimating,
         hingeSide: currentHingeSide, // Pass the dynamically determined hinge side
+        glassThickness: config.glassThickness,
+        glassType: config.glassType,
       });
       currentDoorX += config.doorWidth; // Move to the start of the next door
     }
@@ -1711,6 +1718,8 @@ const Scene = ({ config, isAnimating, showMeasurements }: SceneProps) => {
           side: config.notchSide,
           distanceFromBottom: config.notchDistanceFromBottom,
         } : null,
+        glassThickness: config.glassThickness,
+        glassType: config.glassType,
       });
     }
 
@@ -1733,6 +1742,8 @@ const Scene = ({ config, isAnimating, showMeasurements }: SceneProps) => {
           side: config.notchSide,
           distanceFromBottom: config.notchDistanceFromBottom,
         } : null,
+        glassThickness: config.glassThickness,
+        glassType: config.glassType,
       });
 
       if (showMeasurements) {
@@ -1816,6 +1827,7 @@ const Scene = ({ config, isAnimating, showMeasurements }: SceneProps) => {
             start={m.start}
             end={m.end}
             text={m.text}
+            type={m.type}
             fontSize={m.fontSize}
             color={m.color}
             textPosition={m.textPosition}
@@ -1891,7 +1903,9 @@ export default function ShowerConfigurator() {
   });
 
   const handleConfigChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value, type, checked } = e.target;
+    const target = e.target as HTMLInputElement | HTMLSelectElement;
+    const { name, value, type } = target;
+    const checked = (target as HTMLInputElement).checked;
 
     if (type === "checkbox") {
       if (name === "enableIndividualHeights") {
@@ -2082,7 +2096,7 @@ export default function ShowerConfigurator() {
             Glass Type
           </h3>
           <div style={{ display: "flex", gap: "12px" }}>
-            {["clear", "frosted", "tinted"].map((type: 'clear' | 'frosted' | 'tinted') => (
+            {(["clear", "frosted", "tinted"] as Array<'clear' | 'frosted' | 'tinted'>).map((type) => (
               <button
                 key={type}
                 onClick={() => handleGlassTypeChange(type)}

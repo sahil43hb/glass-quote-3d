@@ -1085,6 +1085,85 @@ import {
   useThree,
 } from '@react-three/fiber';
 
+// Type Definitions
+type Vector3Tuple = [number, number, number];
+type EulerTuple = [number, number, number];
+
+interface Size {
+  width: number;
+  height: number;
+}
+
+interface NotchConfig {
+  height: number;
+  width: number;
+  side: 'left' | 'right';
+  distanceFromBottom: number;
+}
+
+interface GlassPanelProps {
+  size: Size;
+  position: Vector3Tuple;
+  rotation?: EulerTuple;
+  isDoor?: boolean;
+  isOpen?: boolean;
+  showEdges?: boolean;
+  glassThickness: number;
+  glassType: 'clear' | 'frosted' | 'tinted';
+  hingeSide?: 'left' | 'right';
+  notchConfig?: NotchConfig | null;
+  panelType?: 'front' | 'return';
+}
+
+interface Config {
+  height: number;
+  doorWidth: number;
+  doorCount: number;
+  panelDepth: number;
+  returnDepth: number;
+  leftReturn: boolean;
+  rightReturn: boolean;
+  showEdges: boolean;
+  leftPanel: boolean;
+  rightPanel: boolean;
+  glassType: 'clear' | 'frosted' | 'tinted';
+  glassThickness: number;
+  leftPanelHeight: number;
+  rightPanelHeight: number;
+  leftReturnHeight: number;
+  rightReturnHeight: number;
+  doorPlacement: 'left' | 'right';
+  notchEnabled: boolean;
+  notchedElement: 'leftPanel' | 'rightPanel' | 'leftReturn' | 'rightReturn' | 'none';
+  notchHeight: number;
+  notchWidth: number;
+  notchSide: 'left' | 'right';
+  notchDistanceFromBottom: number;
+}
+
+interface UiState {
+  isAnimating: boolean;
+  showMeasurements: boolean;
+  enableIndividualHeights: boolean;
+}
+
+interface MeasurementLineProps {
+  start: Vector3Tuple;
+  end: Vector3Tuple;
+  text: string;
+  color: string;
+  fontSize: number;
+  textPosition: Vector3Tuple;
+  textRotation: EulerTuple;
+}
+
+interface SceneProps {
+  config: Config;
+  isAnimating: boolean;
+  showMeasurements: boolean;
+}
+
+
 // Updated Color palette for a softer, more modern look
 const COLORS = {
   glass: "#E8F0EE", // Light, cool grey-green for the panel background
@@ -1102,14 +1181,14 @@ const COLORS = {
 };
 
 // Conversion factor from meters to inches
-const METERS_TO_INCHES = 39.3701;
-const INCHES_TO_METERS = 1 / METERS_TO_INCHES;
+const METERS_TO_INCHES: number = 39.3701;
+const INCHES_TO_METERS: number = 1 / METERS_TO_INCHES;
 
 // Helper function to convert fractional inches to meters
-const convertInchesToMeters = (inches) => inches * INCHES_TO_METERS;
+const convertInchesToMeters = (inches: number): number => inches * INCHES_TO_METERS;
 
 // New MeasurementLine component to draw lines with text
-const MeasurementLine = ({ start, end, text, color, fontSize, textPosition, textRotation }) => {
+const MeasurementLine = ({ start, end, text, color, fontSize, textPosition, textRotation }: MeasurementLineProps) => {
   const points = [new THREE.Vector3(...start), new THREE.Vector3(...end)];
   const lineGeometry = new THREE.BufferGeometry().setFromPoints(points);
 
@@ -1153,16 +1232,16 @@ const GlassPanel = ({
   hingeSide = 'left', // New prop: 'left' or 'right'
   notchConfig = null, // New prop for notch details
   panelType = 'front', // New prop: 'front' or 'return'
-}) => {
-  const pivotRef = useRef();
-  const materialRef = useRef();
+}: GlassPanelProps) => {
+  const pivotRef = useRef<THREE.Group>(null);
+  const materialRef = useRef<THREE.MeshPhysicalMaterial>(null);
 
   // Local state to manage continuous animation direction for doors
   // 0: moving from closed to inwards open
   // 1: moving from inwards open to closed
   // 2: moving from closed to outwards open
   // 3: moving from outwards open to closed
-  const [animationState, setAnimationState] = useState(0);
+  const [animationState, setAnimationState] = useState<number>(0);
 
   useFrame(() => {
     if (!isDoor || !pivotRef.current) return;
@@ -1176,7 +1255,7 @@ const GlassPanel = ({
     const openOutwardsTarget = hingeSide === 'left' ? -actualMaxOpenAngle : actualMaxOpenAngle;
 
     if (isOpen) { // If the parent signals to animate (continuously)
-      let targetRotation;
+      let targetRotation: number;
 
       switch (animationState) {
         case 0: // Opening inwards (0 to openInwardsTarget)
@@ -1259,14 +1338,14 @@ const GlassPanel = ({
   }, [glassType]);
 
   // Determine pivot position based on hingeSide
-  const pivotPosition = hingeSide === 'left' ? [-size.width / 2, 0, 0] : [size.width / 2, 0, 0];
+  const pivotPosition: Vector3Tuple = hingeSide === 'left' ? [-size.width / 2, 0, 0] : [size.width / 2, 0, 0];
   // Determine mesh position relative to pivot (center of the glass panel)
-  const meshPosition = hingeSide === 'left' ? [size.width / 2, 0, 0] : [-size.width / 2, 0, 0];
+  const meshPosition: Vector3Tuple = hingeSide === 'left' ? [size.width / 2, 0, 0] : [-size.width / 2, 0, 0];
 
   // Calculate notch position if applicable
-  let notchRelativeX = 0; // Relative to the mesh's local center
-  let notchRelativeY = 0; // Relative to the mesh's local center
-  let isNotched = false;
+  let notchRelativeX: number = 0; // Relative to the mesh's local center
+  let notchRelativeY: number = 0; // Relative to the mesh's local center
+  let isNotched: boolean = false;
 
   if (notchConfig) {
     isNotched = true;
@@ -1370,18 +1449,18 @@ const GlassPanel = ({
 };
 
 
-const Scene = ({ config, isAnimating, showMeasurements }) => {
+const Scene = ({ config, isAnimating, showMeasurements }: SceneProps) => {
   const { camera } = useThree();
 
   // Adjust camera to fit the scene only when config changes
   useEffect(() => {
     // Calculate total width of the entire structure including all panels and doors
-    const totalStructureWidth =
+    const totalStructureWidth: number =
       (config.leftPanel ? config.panelDepth : 0) +
       (config.doorCount * config.doorWidth) +
       (config.rightPanel ? config.panelDepth : 0);
 
-    const returnDepth = config.returnDepth;
+    const returnDepth: number = config.returnDepth;
 
     camera.position.set(
       0, // Center X for camera
@@ -1392,22 +1471,22 @@ const Scene = ({ config, isAnimating, showMeasurements }) => {
   }, [config, camera]);
 
   const [elements, measurements] = (function () {
-    const newElements = [];
-    const newMeasurements = [];
-    const measurementOffset = 0.15; // Offset for lines and text from the main structure
-    const labelFontSize = 0.12; // Font size for the measurement text
+    const newElements: GlassPanelProps[] = [];
+    const newMeasurements: MeasurementLineProps[] = [];
+    const measurementOffset: number = 0.15; // Offset for lines and text from the main structure
+    const labelFontSize: number = 0.12; // Font size for the measurement text
 
     // Calculate total width of the entire structure including all panels and doors
-    const totalStructureWidth =
+    const totalStructureWidth: number =
       (config.leftPanel ? config.panelDepth : 0) +
       (config.doorCount * config.doorWidth) +
       (config.rightPanel ? config.panelDepth : 0);
 
     // Calculate the world X-coordinates for the start and end of the entire structure
-    const structureStartX = -totalStructureWidth / 2;
-    const structureEndX = totalStructureWidth / 2;
+    const structureStartX: number = -totalStructureWidth / 2;
+    const structureEndX: number = totalStructureWidth / 2;
 
-    let doorsStartX, doorsEndX;
+    let doorsStartX: number, doorsEndX: number;
 
     // Determine door section start and end based on placement
     if (config.doorPlacement === 'left') {
@@ -1421,7 +1500,7 @@ const Scene = ({ config, isAnimating, showMeasurements }) => {
 
     // Height Measurement for Left Panel (if exists) or first door
     if (showMeasurements && config.leftPanel) {
-      const heightX = structureStartX - measurementOffset;
+      const heightX: number = structureStartX - measurementOffset;
       newMeasurements.push({
         type: "line",
         text: `${(config.leftPanelHeight * METERS_TO_INCHES).toFixed(0)}`,
@@ -1433,7 +1512,7 @@ const Scene = ({ config, isAnimating, showMeasurements }) => {
         textRotation: [0, 0, 0],
       });
     } else if (showMeasurements && config.doorCount > 0) { // If no left panel, measure the first door's height
-      const heightX = doorsStartX - measurementOffset;
+      const heightX: number = doorsStartX - measurementOffset;
       newMeasurements.push({
         type: "line",
         text: `${(config.height * METERS_TO_INCHES).toFixed(0)}`, // Doors use config.height
@@ -1449,7 +1528,7 @@ const Scene = ({ config, isAnimating, showMeasurements }) => {
 
     // Height Measurement for Right Panel (if exists) or last door
     if (showMeasurements && config.rightPanel) {
-      const heightX = structureEndX + measurementOffset;
+      const heightX: number = structureEndX + measurementOffset;
       newMeasurements.push({
         type: "line",
         text: `${(config.rightPanelHeight * METERS_TO_INCHES).toFixed(0)}`,
@@ -1461,7 +1540,7 @@ const Scene = ({ config, isAnimating, showMeasurements }) => {
         textRotation: [0, 0, 0],
       });
     } else if (showMeasurements && config.doorCount > 0) { // If no right panel, measure the last door's height
-      const heightX = doorsEndX + measurementOffset;
+      const heightX: number = doorsEndX + measurementOffset;
       newMeasurements.push({
         type: "line",
         text: `${(config.height * METERS_TO_INCHES).toFixed(0)}`, // Doors use config.height
@@ -1476,8 +1555,8 @@ const Scene = ({ config, isAnimating, showMeasurements }) => {
 
     // NEW: Door(s) Width Measurement (Green Line) - Positioned highest
     if (showMeasurements && config.doorCount > 0) {
-      const doorWidthY = config.height + measurementOffset / 2.5; // Highest horizontal line
-      const doorWidthZ = 0; // On the same plane as the doors
+      const doorWidthY: number = config.height + measurementOffset / 2.5; // Highest horizontal line
+      const doorWidthZ: number = 0; // On the same plane as the doors
 
       newMeasurements.push({
         type: "line",
@@ -1493,7 +1572,7 @@ const Scene = ({ config, isAnimating, showMeasurements }) => {
 
     // Overall Width Measurement (Front Top) - Positioned lower than green line
     if (showMeasurements) {
-      const widthY = config.height + measurementOffset * 1.5; // Lower than green line
+      const widthY: number = config.height + measurementOffset * 1.5; // Lower than green line
       newMeasurements.push({
         type: "line",
         text: `${(totalStructureWidth * METERS_TO_INCHES).toFixed(0)}`, // Rounded to nearest inch
@@ -1508,7 +1587,7 @@ const Scene = ({ config, isAnimating, showMeasurements }) => {
 
     // Overall Width Measurement (Front Bottom)
     if (showMeasurements) {
-      const widthY = -measurementOffset;
+      const widthY: number = -measurementOffset;
       newMeasurements.push({
         type: "line",
         text: `${(totalStructureWidth * METERS_TO_INCHES).toFixed(0)}`, // Rounded to nearest inch
@@ -1541,7 +1620,7 @@ const Scene = ({ config, isAnimating, showMeasurements }) => {
     // Left Return Panel
     if (config.leftReturn) {
       // The left return panel's visual position is at the end of the left panel (or start of doors if no left panel)
-      const leftReturnPanelX = structureStartX;
+      const leftReturnPanelX: number = structureStartX;
       newElements.push({
         type: "panel",
         size: { width: config.returnDepth, height: config.leftReturnHeight }, // Use specific height
@@ -1562,7 +1641,7 @@ const Scene = ({ config, isAnimating, showMeasurements }) => {
 
       if (showMeasurements) {
         // Left Return Depth Measurement (Top)
-        const depthY = config.leftReturnHeight + measurementOffset;
+        const depthY: number = config.leftReturnHeight + measurementOffset;
         newMeasurements.push({
           type: "line",
           text: `${(config.returnDepth * METERS_TO_INCHES).toFixed(0)}`,
@@ -1574,7 +1653,7 @@ const Scene = ({ config, isAnimating, showMeasurements }) => {
           textRotation: [0, Math.PI / 2, 0], // Text faces right
         });
         // Left Return Depth Measurement (Bottom)
-        const depthYBottom = -measurementOffset;
+        const depthYBottom: number = -measurementOffset;
         newMeasurements.push({
           type: "line",
           text: `${(config.returnDepth * METERS_TO_INCHES).toFixed(0)}`,
@@ -1587,7 +1666,7 @@ const Scene = ({ config, isAnimating, showMeasurements }) => {
         });
 
         // Left Return Height Measurement
-        const heightZForReturn = -config.returnDepth - measurementOffset;
+        const heightZForReturn: number = -config.returnDepth - measurementOffset;
         newMeasurements.push({
           type: "line",
           text: `${(config.leftReturnHeight * METERS_TO_INCHES).toFixed(0)}`,
@@ -1602,10 +1681,10 @@ const Scene = ({ config, isAnimating, showMeasurements }) => {
     }
 
     // Doors
-    let currentDoorX = doorsStartX; // Start from where the doors section begins
+    let currentDoorX: number = doorsStartX; // Start from where the doors section begins
     for (let i = 0; i < config.doorCount; i++) {
       // Determine hinge side based on alternation
-      let currentHingeSide;
+      let currentHingeSide: 'left' | 'right';
       if (config.doorPlacement === 'left') {
         currentHingeSide = (i % 2 === 0) ? 'left' : 'right'; // 0, 2, 4... hinge left; 1, 3, 5... hinge right
       } else { // 'right'
@@ -1642,7 +1721,7 @@ const Scene = ({ config, isAnimating, showMeasurements }) => {
 
     // Right Return Panel
     if (config.rightReturn) {
-      const rightReturnPanelX = structureEndX; // X-coord of the front edge of the right return panel
+      const rightReturnPanelX: number = structureEndX; // X-coord of the front edge of the right return panel
       newElements.push({
         type: "panel",
         size: { width: config.returnDepth, height: config.rightReturnHeight }, // Use specific height
@@ -1663,7 +1742,7 @@ const Scene = ({ config, isAnimating, showMeasurements }) => {
 
       if (showMeasurements) {
         // Right Return Depth Measurement (Top)
-        const depthY = config.rightReturnHeight + measurementOffset;
+        const depthY: number = config.rightReturnHeight + measurementOffset;
         newMeasurements.push({
           type: "line",
           text: `${(config.returnDepth * METERS_TO_INCHES).toFixed(0)}`,
@@ -1675,7 +1754,7 @@ const Scene = ({ config, isAnimating, showMeasurements }) => {
           textRotation: [0, -Math.PI / 2, 0], // Text faces left
         });
         // Right Return Depth Measurement (Bottom)
-        const depthYBottom = -measurementOffset;
+        const depthYBottom: number = -measurementOffset;
         newMeasurements.push({
           type: "line",
           text: `${(config.returnDepth * METERS_TO_INCHES).toFixed(0)}`,
@@ -1688,7 +1767,7 @@ const Scene = ({ config, isAnimating, showMeasurements }) => {
         });
 
         // Right Return Height Measurement
-        const heightZForReturn = -config.returnDepth - measurementOffset;
+        const heightZForReturn: number = -config.returnDepth - measurementOffset;
         newMeasurements.push({
           type: "line",
           text: `${(config.rightReturnHeight * METERS_TO_INCHES).toFixed(0)}`,
@@ -1767,7 +1846,7 @@ const Scene = ({ config, isAnimating, showMeasurements }) => {
 };
 
 // Helper function to get the width of a specific element
-const getElementWidth = (currentConfig, elementName) => {
+const getElementWidth = (currentConfig: Config, elementName: Config['notchedElement']): number => {
   switch (elementName) {
     case 'leftPanel':
     case 'rightPanel':
@@ -1781,7 +1860,7 @@ const getElementWidth = (currentConfig, elementName) => {
 };
 
 export default function ShowerConfigurator() {
-  const [config, setConfig] = useState({
+  const [config, setConfig] = useState<Config>({
     height: convertInchesToMeters(55), // Default height 78 inches for doors and general reference
     doorWidth: convertInchesToMeters(26), // Default door width 26 inches
     doorCount: 1,
@@ -1810,13 +1889,13 @@ export default function ShowerConfigurator() {
     notchDistanceFromBottom: convertInchesToMeters(0),
   });
 
-  const [uiState, setUiState] = useState({
+  const [uiState, setUiState] = useState<UiState>({
     isAnimating: false,
     showMeasurements: true,
     enableIndividualHeights: false, // New state for the toggle
   });
 
-  const handleConfigChange = (e) => {
+  const handleConfigChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, type, checked } = e.target;
 
     if (type === "checkbox") {
@@ -1864,7 +1943,7 @@ export default function ShowerConfigurator() {
         [name]: Math.max(1, isNaN(numValue) ? 1 : numValue), // Ensure at least 1 door
       }));
     } else if (name === "glassThickness") {
-      let thicknessInInches;
+      let thicknessInInches: number;
       switch (value) {
         case "3/8":
           thicknessInInches = 3 / 8;
@@ -1888,24 +1967,24 @@ export default function ShowerConfigurator() {
     } else if (name === "doorPlacement" || name === "notchSide") { // Handle dropdowns and radio buttons
       setConfig((prev) => ({
         ...prev,
-        [name]: value,
+        [name]: value as 'left' | 'right', // Type assertion for specific string literal types
       }));
     } else if (name === "notchedElement") {
       setConfig((prev) => {
         const newConfig = {
           ...prev,
-          [name]: value,
+          [name]: value as Config['notchedElement'], // Type assertion
         };
         // If an element is selected, set default notch width to its width
         if (value !== 'none') {
-          const elementWidth = getElementWidth(newConfig, value);
+          const elementWidth = getElementWidth(newConfig, value as Config['notchedElement']);
           newConfig.notchWidth = elementWidth;
         }
         return newConfig;
       });
     }
     else { // All other number inputs (including notch dimensions)
-      const newValueInMeters = parseFloat(value) * INCHES_TO_METERS;
+      const newValueInMeters: number = parseFloat(value) * INCHES_TO_METERS;
 
       setConfig((prev) => {
         const newConfig = {
@@ -1926,7 +2005,7 @@ export default function ShowerConfigurator() {
     }
   };
 
-  const handleGlassTypeChange = (type) => {
+  const handleGlassTypeChange = (type: 'clear' | 'frosted' | 'tinted') => {
     setConfig((prev) => ({
       ...prev,
       glassType: type,
@@ -1946,8 +2025,8 @@ export default function ShowerConfigurator() {
   };
 
   // Function to convert meter value back to fractional inches for display
-  const getFractionalInches = (meters) => {
-    const inches = meters * METERS_TO_INCHES;
+  const getFractionalInches = (meters: number): string => {
+    const inches: number = meters * METERS_TO_INCHES;
     if (Math.abs(inches - 3 / 8) < 0.001) return "3/8";
     if (Math.abs(inches - 1 / 2) < 0.001) return "1/2";
     if (Math.abs(inches - 1 / 4) < 0.001) return "1/4";
@@ -1956,9 +2035,9 @@ export default function ShowerConfigurator() {
   };
 
   // Calculate total dimensions (using internal meter values, convert to inches for display)
-  const totalWidthInches =
+  const totalWidthInches: number =
     (config.leftPanel ? config.panelDepth : 0 + config.doorCount * config.doorWidth + (config.rightPanel ? config.panelDepth : 0)) * METERS_TO_INCHES;
-  const totalDepthInches =
+  const totalDepthInches: number =
     Math.max(
       config.leftReturn ? config.returnDepth : 0,
       config.rightReturn ? config.returnDepth : 0
@@ -2008,7 +2087,7 @@ export default function ShowerConfigurator() {
             Glass Type
           </h3>
           <div style={{ display: "flex", gap: "12px" }}>
-            {["clear", "frosted", "tinted"].map((type) => (
+            {["clear", "frosted", "tinted"].map((type: 'clear' | 'frosted' | 'tinted') => (
               <button
                 key={type}
                 onClick={() => handleGlassTypeChange(type)}
@@ -2025,18 +2104,18 @@ export default function ShowerConfigurator() {
                   transition: "all 0.3s ease",
                   boxShadow: "0 2px 5px rgba(0,0,0,0.05)", // Subtle button shadow
                 }}
-                onMouseOver={(e) =>
+                onMouseOver={(e: React.MouseEvent<HTMLButtonElement>) =>
                   (e.currentTarget.style.backgroundColor =
                     config.glassType === type
                       ? COLORS.glassEdge
                       : COLORS.buttonHover)
                 }
-                onMouseOut={(e) =>
+                onMouseOut={(e: React.MouseEvent<HTMLButtonElement>) =>
                   (e.currentTarget.style.backgroundColor =
                     config.glassType === type ? COLORS.glassEdge : "#fff")
                 }
-                onMouseDown={(e) => (e.currentTarget.style.transform = "translateY(1px)")}
-                onMouseUp={(e) => (e.currentTarget.style.transform = "translateY(0)")}
+                onMouseDown={(e: React.MouseEvent<HTMLButtonElement>) => (e.currentTarget.style.transform = "translateY(1px)")}
+                onMouseUp={(e: React.MouseEvent<HTMLButtonElement>) => (e.currentTarget.style.transform = "translateY(0)")}
               >
                 {type.charAt(0).toUpperCase() + type.slice(1)}
               </button>
@@ -2070,16 +2149,16 @@ export default function ShowerConfigurator() {
               cursor: "pointer", // Ensure cursor is pointer
               transition: "border-color 0.3s ease, box-shadow 0.3s ease",
             }}
-            onFocus={(e) => {
+            onFocus={(e: React.FocusEvent<HTMLSelectElement>) => {
               e.currentTarget.style.borderColor = COLORS.inputFocus;
               e.currentTarget.style.boxShadow = `0 0 0 3px ${COLORS.inputFocus}40`; // Add a subtle focus ring
             }}
-            onBlur={(e) => {
+            onBlur={(e: React.FocusEvent<HTMLSelectElement>) => {
               e.currentTarget.style.borderColor = COLORS.glassEdge;
               e.currentTarget.style.boxShadow = "0 2px 5px rgba(0,0,0,0.05)";
             }}
           >
-            {["3/8", "1/2", "1/4", "1/8"].map((thickness) => (
+            {["3/8", "1/2", "1/4", "1/8"].map((thickness: string) => (
               <option key={thickness} value={thickness}>
                 {thickness} inches
               </option>
@@ -2121,7 +2200,7 @@ export default function ShowerConfigurator() {
               type="number"
               name={input.name}
               step={input.step}
-              value={(config[input.name] * METERS_TO_INCHES).toFixed(2)}
+              value={(config[input.name as keyof Config] as number * METERS_TO_INCHES).toFixed(2)}
               onChange={handleConfigChange}
               style={{
                 width: "100%",
@@ -2134,11 +2213,11 @@ export default function ShowerConfigurator() {
                 boxShadow: "0 2px 5px rgba(0,0,0,0.05)",
                 transition: "border-color 0.3s ease, box-shadow 0.3s ease",
               }}
-              onFocus={(e) => {
+              onFocus={(e: React.FocusEvent<HTMLInputElement>) => {
                 e.currentTarget.style.borderColor = COLORS.inputFocus;
                 e.currentTarget.style.boxShadow = `0 0 0 3px ${COLORS.inputFocus}40`;
               }}
-              onBlur={(e) => {
+              onBlur={(e: React.FocusEvent<HTMLInputElement>) => {
                 e.currentTarget.style.borderColor = COLORS.glassEdge;
                 e.currentTarget.style.boxShadow = "0 2px 5px rgba(0,0,0,0.05)";
               }}
@@ -2177,11 +2256,11 @@ export default function ShowerConfigurator() {
               boxShadow: "0 2px 5px rgba(0,0,0,0.05)",
               transition: "border-color 0.3s ease, box-shadow 0.3s ease",
             }}
-            onFocus={(e) => {
+            onFocus={(e: React.FocusEvent<HTMLInputElement>) => {
               e.currentTarget.style.borderColor = COLORS.inputFocus;
               e.currentTarget.style.boxShadow = `0 0 0 3px ${COLORS.inputFocus}40`;
             }}
-            onBlur={(e) => {
+            onBlur={(e: React.FocusEvent<HTMLInputElement>) => {
               e.currentTarget.style.borderColor = COLORS.glassEdge;
               e.currentTarget.style.boxShadow = "0 2px 5px rgba(0,0,0,0.05)";
             }}
@@ -2273,7 +2352,7 @@ export default function ShowerConfigurator() {
               type="number"
               name={input.name}
               step={input.step}
-              value={(config[input.name] * METERS_TO_INCHES).toFixed(2)}
+              value={(config[input.name as keyof Config] as number * METERS_TO_INCHES).toFixed(2)}
               onChange={handleConfigChange}
               disabled={!uiState.enableIndividualHeights} // Disable input based on toggle
               style={{
@@ -2289,13 +2368,13 @@ export default function ShowerConfigurator() {
                 opacity: uiState.enableIndividualHeights ? 1 : 0.5, // Dim input when disabled
                 cursor: uiState.enableIndividualHeights ? "text" : "not-allowed",
               }}
-              onFocus={(e) => {
+              onFocus={(e: React.FocusEvent<HTMLInputElement>) => {
                 if (uiState.enableIndividualHeights) {
                   e.currentTarget.style.borderColor = COLORS.inputFocus;
                   e.currentTarget.style.boxShadow = `0 0 0 3px ${COLORS.inputFocus}40`;
                 }
               }}
-              onBlur={(e) => {
+              onBlur={(e: React.FocusEvent<HTMLInputElement>) => {
                 if (uiState.enableIndividualHeights) {
                   e.currentTarget.style.borderColor = COLORS.glassEdge;
                   e.currentTarget.style.boxShadow = "0 2px 5px rgba(0,0,0,0.05)";
@@ -2374,13 +2453,13 @@ export default function ShowerConfigurator() {
                 transition: "border-color 0.3s ease, box-shadow 0.3s ease, opacity 0.3s ease",
                 opacity: config.notchEnabled ? 1 : 0.5,
               }}
-              onFocus={(e) => {
+              onFocus={(e: React.FocusEvent<HTMLSelectElement>) => {
                 if (config.notchEnabled) {
                   e.currentTarget.style.borderColor = COLORS.inputFocus;
                   e.currentTarget.style.boxShadow = `0 0 0 3px ${COLORS.inputFocus}40`;
                 }
               }}
-              onBlur={(e) => {
+              onBlur={(e: React.FocusEvent<HTMLSelectElement>) => {
                 if (config.notchEnabled) {
                   e.currentTarget.style.borderColor = COLORS.glassEdge;
                   e.currentTarget.style.boxShadow = "0 2px 5px rgba(0,0,0,0.05)";
@@ -2418,7 +2497,7 @@ export default function ShowerConfigurator() {
                 type="number"
                 name={input.name}
                 step={input.step}
-                value={(config[input.name] * METERS_TO_INCHES).toFixed(2)}
+                value={(config[input.name as keyof Config] as number * METERS_TO_INCHES).toFixed(2)}
                 onChange={handleConfigChange}
                 disabled={!config.notchEnabled || config.notchedElement === 'none'}
                 style={{
@@ -2434,13 +2513,13 @@ export default function ShowerConfigurator() {
                   opacity: config.notchEnabled && config.notchedElement !== 'none' ? 1 : 0.5,
                   cursor: config.notchEnabled && config.notchedElement !== 'none' ? "text" : "not-allowed",
                 }}
-                onFocus={(e) => {
+                onFocus={(e: React.FocusEvent<HTMLInputElement>) => {
                   if (config.notchEnabled && config.notchedElement !== 'none') {
                     e.currentTarget.style.borderColor = COLORS.inputFocus;
                     e.currentTarget.style.boxShadow = `0 0 0 3px ${COLORS.inputFocus}40`;
                   }
                 }}
-                onBlur={(e) => {
+                onBlur={(e: React.FocusEvent<HTMLInputElement>) => {
                   if (config.notchEnabled && config.notchedElement !== 'none') {
                     e.currentTarget.style.borderColor = COLORS.glassEdge;
                     e.currentTarget.style.boxShadow = "0 2px 5px rgba(0,0,0,0.05)";
@@ -2513,7 +2592,7 @@ export default function ShowerConfigurator() {
               <input
                 type="checkbox"
                 name={checkbox.name}
-                checked={config[checkbox.name]}
+                checked={config[checkbox.name as keyof Config] as boolean}
                 onChange={handleConfigChange}
                 style={{
                   marginRight: "10px",
@@ -2550,18 +2629,18 @@ export default function ShowerConfigurator() {
               transition: "background-color 0.3s ease, transform 0.1s ease-out",
               boxShadow: "0 4px 8px rgba(0,0,0,0.1)",
             }}
-            onMouseOver={(e) =>
+            onMouseOver={(e: React.MouseEvent<HTMLButtonElement>) =>
               (e.currentTarget.style.backgroundColor = uiState.isAnimating
                 ? COLORS.text
                 : COLORS.buttonHover)
             }
-            onMouseOut={(e) =>
+            onMouseOut={(e: React.MouseEvent<HTMLButtonElement>) =>
               (e.currentTarget.style.backgroundColor = uiState.isAnimating
                 ? COLORS.text
                 : COLORS.glassEdge)
             }
-            onMouseDown={(e) => (e.currentTarget.style.transform = "translateY(1px)")}
-            onMouseUp={(e) => (e.currentTarget.style.transform = "translateY(0)")}
+            onMouseDown={(e: React.MouseEvent<HTMLButtonElement>) => (e.currentTarget.style.transform = "translateY(1px)")}
+            onMouseUp={(e: React.MouseEvent<HTMLButtonElement>) => (e.currentTarget.style.transform = "translateY(0)")}
           >
             {uiState.isAnimating ? (
               <>
@@ -2589,18 +2668,18 @@ export default function ShowerConfigurator() {
               transition: "background-color 0.3s ease, transform 0.1s ease-out",
               boxShadow: "0 4px 8px rgba(0,0,0,0.1)",
             }}
-            onMouseOver={(e) =>
+            onMouseOver={(e: React.MouseEvent<HTMLButtonElement>) =>
               (e.currentTarget.style.backgroundColor = uiState.showMeasurements
                 ? COLORS.text
                 : COLORS.buttonHover)
             }
-            onMouseOut={(e) =>
+            onMouseOut={(e: React.MouseEvent<HTMLButtonElement>) =>
               (e.currentTarget.style.backgroundColor = uiState.showMeasurements
                 ? COLORS.text
                 : COLORS.glassEdge)
             }
-            onMouseDown={(e) => (e.currentTarget.style.transform = "translateY(1px)")}
-            onMouseUp={(e) => (e.currentTarget.style.transform = "translateY(0)")}
+            onMouseDown={(e: React.MouseEvent<HTMLButtonElement>) => (e.currentTarget.style.transform = "translateY(1px)")}
+            onMouseUp={(e: React.MouseEvent<HTMLButtonElement>) => (e.currentTarget.style.transform = "translateY(0)")}
           >
             {uiState.showMeasurements ? "Hide Measures" : "Show Measures"}
           </button>
@@ -2707,4 +2786,3 @@ export default function ShowerConfigurator() {
     </div>
   );
 }
-

@@ -1062,7 +1062,6 @@
 //     </div>
 //   );
 // }
-
 "use client";
 
 import {
@@ -1152,6 +1151,7 @@ interface MeasurementLineProps {
   end: Vector3Tuple;
   text: string;
   color: string;
+  type: string;
   fontSize: number;
   textPosition: Vector3Tuple;
   textRotation: EulerTuple;
@@ -1206,11 +1206,7 @@ const MeasurementLine = ({ start, end, text, color, fontSize, textPosition, text
         anchorY="middle"
         outlineWidth={0.005}
         outlineColor="#ffffff"
-        backgroundOpacity={0.7}
-        backgroundColor="#ffffff"
-        padding={0.03}
-        borderRadius={0.01}
-        billboard={false} // Crucial: Text orientation is fixed in world space
+        // Removed billboard prop as it's no longer supported or causes type errors
       >
         {text}
       </Text>
@@ -1438,7 +1434,7 @@ const GlassPanel = ({
               meshPosition[2] // Z is 0 relative to panel center
             ]}
           >
-            <boxGeometry args={[notchConfig.width, notchConfig.height, glassThickness * 1.1]} /> {/* Slightly thicker than glass */}
+            <boxGeometry args={[notchConfig?.width, notchConfig?.height, glassThickness * 1.1]} /> {/* Slightly thicker than glass */}
             <meshBasicMaterial color={COLORS.background} /> {/* Reverted to background color */}
           </mesh>
         )}
@@ -1656,8 +1652,8 @@ const Scene = ({ config, isAnimating, showMeasurements }: SceneProps) => {
         newMeasurements.push({
           type: "line",
           text: `${(config.returnDepth * METERS_TO_INCHES).toFixed(0)}`,
-          start: [leftReturnPanelX, depthYBottom, 0], // Start line from the front edge of the return panel
-          end: [leftReturnPanelX, depthYBottom, -config.returnDepth], // End line at the back edge
+          start: [leftReturnPanelX, depthYBottom, 0],
+          end: [leftReturnPanelX, depthYBottom, -config.returnDepth],
           fontSize: labelFontSize,
           color: COLORS.measurement,
           textPosition: [leftReturnPanelX + measurementOffset, depthYBottom, -config.returnDepth / 2], // Text offset from the line
@@ -1673,7 +1669,7 @@ const Scene = ({ config, isAnimating, showMeasurements }: SceneProps) => {
           end: [leftReturnPanelX, config.leftReturnHeight, heightZForReturn],
           fontSize: labelFontSize,
           color: COLORS.measurement,
-          textPosition: [leftReturnPanelX - measurementOffset, config.leftReturnHeight / 2, heightZForReturn],
+          textPosition: [leftReturnPanelX + measurementOffset, config.leftReturnHeight / 2, heightZForReturn],
           textRotation: [0, Math.PI / 2, 0], // Rotate to face side
         });
       }

@@ -1460,8 +1460,8 @@ const Scene = ({ config, isAnimating, showMeasurements }: SceneProps) => {
 
     camera.position.set(
       0, // Center X for camera
-      config.height * 0.8,
-      Math.max(totalStructureWidth, returnDepth) * 1.2
+      config.height * 1.5, // Changed from 0.8 to 0.5 to lower the camera
+      Math.max(totalStructureWidth, returnDepth) * 3.0 // Increased multiplier for more zoom out
     );
     camera.lookAt(0, config.height / 2, 0); // Look at the center of the structure
   }, [config, camera]);
@@ -1768,7 +1768,7 @@ const Scene = ({ config, isAnimating, showMeasurements }: SceneProps) => {
           end: [rightReturnPanelX, -measurementOffset, -config.returnDepth],
           fontSize: labelFontSize,
           color: COLORS.measurement,
-          textPosition: [rightReturnPanelX - measurementOffset, depthYBottom, -config.returnDepth / 2], // Shift text left
+          textPosition: [rightReturnPanelX - measurementOffset, depthYBottom, -config.returnDepth / 2], // Text offset from the line
           textRotation: [0, -Math.PI / 2, 0], // Text faces left
         });
 

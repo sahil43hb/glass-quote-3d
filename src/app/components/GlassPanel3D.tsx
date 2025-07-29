@@ -2314,7 +2314,7 @@ export default function ShowerConfigurator() {
           />
         </div>
 
-        {/* Door Placement Radio Buttons */}
+ {/* Door Placement Radio Buttons */}
         <div>
           <h3 style={{ color: COLORS.text, marginBottom: "12px", fontSize: "1.1rem" }}>
             Door Placement
@@ -2344,6 +2344,51 @@ export default function ShowerConfigurator() {
             </label>
           </div>
         </div>
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gap: "15px",
+          }}
+        >
+          {[
+            { name: "leftReturn", label: "Left Return" },
+            { name: "rightReturn", label: "Right Return" },
+            { name: "showEdges", label: "Show Edges" },
+            { name: "leftPanel", label: "Left Panel" },
+            { name: "rightPanel", label: "Right Panel" },
+          ].map((checkbox) => (
+            <label
+              key={checkbox.name}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                color: COLORS.text,
+                fontWeight: "500",
+                fontSize: "1rem",
+                cursor: "pointer", // Ensure cursor is pointer for labels
+              }}
+            >
+              <input
+                type="checkbox"
+                name={checkbox.name}
+                checked={config[checkbox.name as keyof Config] as boolean}
+                onChange={handleConfigChange}
+                style={{
+                  marginRight: "10px",
+                  accentColor: COLORS.glassEdge,
+                  width: "18px", // Larger checkbox
+                  height: "18px",
+                  cursor: "pointer",
+                }}
+              />
+              {checkbox.label}
+            </label>
+          ))}
+        </div>
+
+       
 
 
         {/* New checkbox for individual height control */}
@@ -2611,49 +2656,6 @@ export default function ShowerConfigurator() {
         </div>
 
 
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr",
-            gap: "15px",
-          }}
-        >
-          {[
-            { name: "leftReturn", label: "Left Return" },
-            { name: "rightReturn", label: "Right Return" },
-            { name: "showEdges", label: "Show Edges" },
-            { name: "leftPanel", label: "Left Panel" },
-            { name: "rightPanel", label: "Right Panel" },
-          ].map((checkbox) => (
-            <label
-              key={checkbox.name}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                color: COLORS.text,
-                fontWeight: "500",
-                fontSize: "1rem",
-                cursor: "pointer", // Ensure cursor is pointer for labels
-              }}
-            >
-              <input
-                type="checkbox"
-                name={checkbox.name}
-                checked={config[checkbox.name as keyof Config] as boolean}
-                onChange={handleConfigChange}
-                style={{
-                  marginRight: "10px",
-                  accentColor: COLORS.glassEdge,
-                  width: "18px", // Larger checkbox
-                  height: "18px",
-                  cursor: "pointer",
-                }}
-              />
-              {checkbox.label}
-            </label>
-          ))}
-        </div>
-
         {/* Action Buttons */}
         <div style={{ display: "flex", gap: "12px", marginTop: "10px" }}>
           <button
@@ -2807,7 +2809,7 @@ export default function ShowerConfigurator() {
       {/* 3D Viewer */}
       <div style={{ flex: 1, position: "relative" }}>
         {/* Added gl prop with preserveDrawingBuffer: true and a clearColor for the background */}
-        <Canvas shadows gl={{ preserveDrawingBuffer: true, }} camera={{ position: [0, 2, 5], fov: 60 }}>
+        <Canvas shadows gl={{ preserveDrawingBuffer: true}} camera={{ position: [0, 2, 5], fov: 60 }}>
           <Scene
             config={config}
             isAnimating={uiState.isAnimating}

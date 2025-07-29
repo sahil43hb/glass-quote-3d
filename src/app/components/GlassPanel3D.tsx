@@ -1063,7 +1063,6 @@
 //   );
 // }
 
-
 "use client";
 
 import {
@@ -1184,6 +1183,7 @@ const COLORS = {
   buttonHover: "#7D9D95", // Slightly darker shade for button hover
   inputFocus: "#8CBBAF", // A slightly brighter green for input focus
   doorMeasurement: "#4CAF50", // Green color for door specific measurement
+  notchColor: "#6A8C80", // Changed to theme-like color (glassEdge)
 };
 
 // Conversion factor from meters to inches
@@ -1441,7 +1441,7 @@ const GlassPanel = ({
             ]}
           >
             <boxGeometry args={[notchConfig?.width, notchConfig?.height, glassThickness * 1.1]} /> {/* Slightly thicker than glass */}
-            <meshBasicMaterial color={COLORS.background} /> {/* Reverted to background color */}
+            <meshBasicMaterial color={COLORS.notchColor} /> {/* Changed to theme-like color */}
           </mesh>
         )}
       </group>
@@ -1653,8 +1653,8 @@ const Scene = ({ config, isAnimating, showMeasurements, onGlReady }: SceneProps)
         newMeasurements.push({
           type: "line",
           text: `${(config.returnDepth * METERS_TO_INCHES).toFixed(0)}`,
-          start: [leftReturnPanelX, depthY, 0], // Start line from the front edge of the return panel
-          end: [leftReturnPanelX, depthY, -config.returnDepth], // End line at the back edge
+          start: [leftReturnPanelX, depthY, 0],
+          end: [leftReturnPanelX, depthY, -config.returnDepth],
           fontSize: labelFontSize,
           color: COLORS.measurement,
           textPosition: [leftReturnPanelX + measurementOffset, depthY, -config.returnDepth / 2], // Text offset from the line
@@ -1891,7 +1891,7 @@ export default function ShowerConfigurator() {
     showEdges: true,
     leftPanel: false,
     rightPanel: false,
-    glassType: "clear",
+    glassType: "frosted", // Changed default glass type to "frosted"
     glassThickness: convertInchesToMeters(3 / 8), // Default glass thickness 3/8 inches
     // New individual height properties, defaulting to main height
     leftPanelHeight: convertInchesToMeters(55),
@@ -2807,7 +2807,7 @@ export default function ShowerConfigurator() {
       {/* 3D Viewer */}
       <div style={{ flex: 1, position: "relative" }}>
         {/* Added gl prop with preserveDrawingBuffer: true and a clearColor for the background */}
-        <Canvas shadows gl={{ preserveDrawingBuffer: true }} camera={{ position: [0, 2, 5], fov: 60 }}>
+        <Canvas shadows gl={{ preserveDrawingBuffer: true, }} camera={{ position: [0, 2, 5], fov: 60 }}>
           <Scene
             config={config}
             isAnimating={uiState.isAnimating}

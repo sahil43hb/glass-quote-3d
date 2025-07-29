@@ -1062,6 +1062,8 @@
 //     </div>
 //   );
 // }
+
+
 "use client";
 
 import {
@@ -1076,6 +1078,7 @@ import {
   Edges,
   Environment,
   OrbitControls,
+  Plane,
   Text,
 } from '@react-three/drei';
 import {
@@ -1162,6 +1165,7 @@ interface SceneProps {
   config: Config;
   isAnimating: boolean;
   showMeasurements: boolean;
+  onGlReady: (gl: THREE.WebGLRenderer) => void; // New prop to pass gl instance
 }
 
 
@@ -1170,11 +1174,12 @@ const COLORS = {
   glass: "#E8F0EE", // Light, cool grey-green for the panel background
   glassEdge: "#6A8C80", // Muted teal-green for accents and borders
   panel: "#DDEEEB", // Very light, slightly desaturated green for glass panels (non-door)
-  background: "#F4F8F7", // Soft, very light grey-green for the overall background
+  background: "#F4F8F7", // Soft, very light grey-green for the overall background (HTML background)
+  sceneBackground: "#F0F0F0", // Light grey for the 3D scene background
   text: "#3A5C50", // Darker teal-green for primary text
   handle: "#4A4A4A", // Dark grey for metallic handle
   measurement: "#B82F2F", // Slightly desaturated red for measurements
-  floor: "#EFEFEF", // Light neutral grey floor
+  floor: "#C0C0C0", // Slightly darker neutral grey for the floor
   wall: "#F8F8F8", // Very light neutral grey wall
   buttonHover: "#7D9D95", // Slightly darker shade for button hover
   inputFocus: "#8CBBAF", // A slightly brighter green for input focus
@@ -1445,8 +1450,8 @@ const GlassPanel = ({
 };
 
 
-const Scene = ({ config, isAnimating, showMeasurements }: SceneProps) => {
-  const { camera } = useThree();
+const Scene = ({ config, isAnimating, showMeasurements, onGlReady }: SceneProps) => {
+  const { camera, gl } = useThree(); // Get gl instance from useThree
 
   // Adjust camera to fit the scene only when config changes
   useEffect(() => {
@@ -1464,7 +1469,10 @@ const Scene = ({ config, isAnimating, showMeasurements }: SceneProps) => {
       Math.max(totalStructureWidth, returnDepth) * 3.0 // Increased multiplier for more zoom out
     );
     camera.lookAt(0, config.height / 2, 0); // Look at the center of the structure
-  }, [config, camera]);
+
+    // Pass the gl instance to the parent component
+    onGlReady(gl);
+  }, [config, camera, gl, onGlReady]); // Add gl and onGlReady to dependencies
 
   const [elements, measurements] = (function () {
     const newElements: GlassPanelProps[] = [];
@@ -1799,7 +1807,8 @@ const Scene = ({ config, isAnimating, showMeasurements }: SceneProps) => {
         shadow-mapSize-width={2048}
         shadow-mapSize-height={2048}
       />
-      <Environment preset="park" />
+      {/* Changed Environment preset for a brighter, more appealing background */}
+      <Environment preset="city" />
 
       {/* Shower elements */}
       {elements.map((el, i) => (
@@ -1812,7 +1821,7 @@ const Scene = ({ config, isAnimating, showMeasurements }: SceneProps) => {
           isOpen={el.isOpen}
           showEdges={config.showEdges}
           glassThickness={config.glassThickness} // Pass thickness
-          glassType={config.glassType} // Pass glass type
+          glassType={el.glassType} // Pass glass type
           hingeSide={el.hingeSide} // Pass hinge side for doors
           notchConfig={el.notchConfig} // Pass notch config
           panelType={el.panelType} // Pass the panelType
@@ -1835,11 +1844,15 @@ const Scene = ({ config, isAnimating, showMeasurements }: SceneProps) => {
           />
         ))}
 
-      {/* Floor */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[20, 20]} />
-        <meshStandardMaterial color={COLORS.floor} roughness={0.5} />
-      </mesh>
+      {/* Floor - Using Plane component from drei for simplicity and better shadows */}
+      <Plane args={[20, 20]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+        {/* Changed floor material to a slightly textured, lighter grey */}
+        <meshStandardMaterial color={COLORS.floor} roughness={0.6} metalness={0.1} />
+      </Plane>
+
+      {/* Added a Grid Helper for better spatial awareness */}
+      <gridHelper args={[20, 20, 0xcccccc, 0x888888]} position={[0, 0.001, 0]} /> {/* Slightly above floor to prevent z-fighting */}
+
 
       <OrbitControls
         minDistance={1}
@@ -1901,6 +1914,9 @@ export default function ShowerConfigurator() {
     showMeasurements: true,
     enableIndividualHeights: false, // New state for the toggle
   });
+
+  // State to hold the WebGLRenderer instance
+  const [glInstance, setGlInstance] = useState<THREE.WebGLRenderer | null>(null);
 
   const handleConfigChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const target = e.target as HTMLInputElement | HTMLSelectElement;
@@ -2033,6 +2049,28 @@ export default function ShowerConfigurator() {
     }));
   };
 
+  const handleDownloadImage = () => {
+    if (glInstance) {
+      // Get the actual DOM canvas element from the WebGLRenderer instance
+      const canvas = glInstance.domElement;
+
+      // Create an image URL from the canvas content
+      const imageUrl = canvas.toDataURL('image/png');
+
+      // Create a temporary link element
+      const link = document.createElement('a');
+      link.href = imageUrl;
+      link.download = 'shower_layout.png'; // Set the download filename
+
+      // Programmatically click the link to trigger the download
+      document.body.appendChild(link); // Append to body is good practice for programmatic clicks
+      link.click();
+      document.body.removeChild(link); // Clean up the temporary link
+    } else {
+      console.error("WebGLRenderer instance is not available for download.");
+    }
+  };
+
   // Function to convert meter value back to fractional inches for display
   const getFractionalInches = (meters: number): string => {
     const inches: number = meters * METERS_TO_INCHES;
@@ -2087,7 +2125,7 @@ export default function ShowerConfigurator() {
             letterSpacing: "-0.02em",
           }}
         >
-          Shower Configurator
+          Glass Layout Configurator
         </h2>
 
         {/* Glass Type Selector */}
@@ -2150,7 +2188,7 @@ export default function ShowerConfigurator() {
               color: COLORS.text,
               fontSize: "1rem",
               appearance: "none", // Remove default select arrow
-              backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23${COLORS.text.substring(1)}'%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3C/svg%3E")`,
+              backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23${COLORS.text.substring(1)}'%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3Csvg%3E")`,
               backgroundRepeat: "no-repeat",
               backgroundPosition: "right 10px center",
               backgroundSize: "18px",
@@ -2453,7 +2491,7 @@ export default function ShowerConfigurator() {
                 color: COLORS.text,
                 fontSize: "1rem",
                 appearance: "none",
-                backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23${COLORS.text.substring(1)}'%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3C/svg%3E")`,
+                backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23${COLORS.text.substring(1)}'%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3Csvg%3E")`,
                 backgroundRepeat: "no-repeat",
                 backgroundPosition: "right 10px center",
                 backgroundSize: "18px",
@@ -2529,7 +2567,7 @@ export default function ShowerConfigurator() {
                   }
                 }}
                 onBlur={(e: React.FocusEvent<HTMLInputElement>) => {
-                  if (config.notchEnabled && config.notchedElement !== 'none') {
+                  if (config.notchEnabled) {
                     e.currentTarget.style.borderColor = COLORS.glassEdge;
                     e.currentTarget.style.boxShadow = "0 2px 5px rgba(0,0,0,0.05)";
                   }
@@ -2694,6 +2732,7 @@ export default function ShowerConfigurator() {
           </button>
         </div>
 
+
         {/* Current Configuration Summary */}
         <div
           style={{
@@ -2767,13 +2806,44 @@ export default function ShowerConfigurator() {
 
       {/* 3D Viewer */}
       <div style={{ flex: 1, position: "relative" }}>
-        <Canvas shadows>
+        {/* Added gl prop with preserveDrawingBuffer: true and a clearColor for the background */}
+        <Canvas shadows gl={{ preserveDrawingBuffer: true }} camera={{ position: [0, 2, 5], fov: 60 }}>
           <Scene
             config={config}
             isAnimating={uiState.isAnimating}
             showMeasurements={uiState.showMeasurements}
+            onGlReady={setGlInstance} // Pass the setter for glInstance
           />
         </Canvas>
+        {/* New Download Image Button position */}
+        <button
+          onClick={handleDownloadImage}
+          style={{
+            position: "absolute",
+            top: "20px", // 20px from the top
+            right: "20px", // 20px from the right
+            padding: "12px 15px",
+            backgroundColor: COLORS.text,
+            color: "#fff",
+            border: "none",
+            borderRadius: "6px",
+            cursor: "pointer",
+            fontWeight: "bold",
+            transition: "background-color 0.3s ease, transform 0.1s ease-out",
+            boxShadow: "0 4px 8px rgba(0,0,0,0.1)",
+            zIndex: 10, // Ensure it's above the canvas
+          }}
+          onMouseOver={(e: React.MouseEvent<HTMLButtonElement>) =>
+            (e.currentTarget.style.backgroundColor = COLORS.buttonHover)
+          }
+          onMouseOut={(e: React.MouseEvent<HTMLButtonElement>) =>
+            (e.currentTarget.style.backgroundColor = COLORS.text)
+          }
+          onMouseDown={(e: React.MouseEvent<HTMLButtonElement>) => (e.currentTarget.style.transform = "translateY(1px)")}
+          onMouseUp={(e: React.MouseEvent<HTMLButtonElement>) => (e.currentTarget.style.transform = "translateY(0)")}
+        >
+          Download Image
+        </button>
         <div
           style={{
             position: "absolute",

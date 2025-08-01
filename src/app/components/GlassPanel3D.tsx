@@ -7,6 +7,7 @@ import {
 } from 'react';
 
 import * as THREE from 'three';
+import { TextureLoader } from 'three';
 
 import {
   Edges,
@@ -18,8 +19,15 @@ import {
 import {
   Canvas,
   useFrame,
+  useLoader,
   useThree,
 } from '@react-three/fiber';
+
+import {
+  convertInchesToMeters,
+  degreesToRadians,
+  PREDEFINED_LAYOUTS,
+} from './_data';
 
 // Type Definitions
 type Vector3Tuple = [number, number, number];
@@ -71,15 +79,14 @@ interface Config {
   rightReturnHeight: number;
   doorPlacement: "left" | "right";
 
-  // New: Back Panel
   backPanel: boolean;
   backPanelHeight: number;
+  backPanelWidth: number; // New: Manual back panel width
 
-  // Notch Configuration - now individual controls
-  notchEnabled: boolean; // Global toggle for the feature
-  notchHeight: number; // Global
-  notchDistanceFromBottom: number; // Global
-  notchSide: "left" | "right"; // Global for now
+  notchEnabled: boolean;
+  notchHeight: number;
+  notchDistanceFromBottom: number;
+  notchSide: "left" | "right";
 
   leftPanelNotchEnabled: boolean;
   leftPanelNotchWidth: number;
@@ -89,6 +96,10 @@ interface Config {
   leftReturnNotchWidth: number;
   rightReturnNotchEnabled: boolean;
   rightReturnNotchWidth: number;
+
+  // New angle properties
+  leftReturnAngle: number; // in radians
+  rightReturnAngle: number; // in radians
 }
 
 interface UiState {
@@ -137,9 +148,6 @@ const COLORS = {
 const METERS_TO_INCHES: number = 39.3701;
 const INCHES_TO_METERS: number = 1 / METERS_TO_INCHES;
 
-// Helper function to convert fractional inches to meters
-const convertInchesToMeters = (inches: number): number =>
-  inches * INCHES_TO_METERS;
 
 // New MeasurementLine component to draw lines with text
 const MeasurementLine = ({
@@ -405,6 +413,8 @@ const Scene = ({
   onGlReady,
 }: SceneProps) => {
   const { camera, gl } = useThree();
+  // Load the background texture
+  const backgroundTexture = useLoader(TextureLoader, '/bg-Image.jpg');
 
   useEffect(() => {
     const totalStructureWidth: number =
@@ -594,16 +604,28 @@ const Scene = ({
 
     // Left Return Panel
     if (config.leftReturn) {
-      const leftReturnPanelX: number = structureStartX;
+      const pivotX = structureStartX;
+      const pivotY = config.leftReturnHeight / 2;
+      const pivotZ = 0; // This is the front edge of the main structure
+
+      const halfReturnDepth = config.returnDepth / 2;
+      const angle = config.leftReturnAngle; // Angle from the front plane (X-Z plane)
+
+      // Calculate the panel's center position relative to the pivot after rotation
+      // If angle = 0, panel is along +X, center is at (pivotX + halfReturnDepth, pivotY, pivotZ)
+      // If angle = PI/2, panel is along -Z, center is at (pivotX, pivotY, pivotZ - halfReturnDepth)
+      const rotatedOffsetX = halfReturnDepth * Math.cos(angle);
+      const rotatedOffsetZ = -halfReturnDepth * Math.sin(angle);
+
       newElements.push({
         type: "panel",
         size: { width: config.returnDepth, height: config.leftReturnHeight },
         position: [
-          leftReturnPanelX,
-          config.leftReturnHeight / 2,
-          -config.returnDepth / 2,
+          pivotX  - rotatedOffsetX,
+          pivotY,
+          pivotZ + rotatedOffsetZ,
         ],
-        rotation: [0, Math.PI / 2, 0],
+        rotation: [0, -angle, 0], // Negative angle for clockwise rotation from +X
         panelType: "return",
         notchConfig:
           config.notchEnabled && config.leftReturnNotchEnabled
@@ -624,50 +646,55 @@ const Scene = ({
         newMeasurements.push({
           type: "line",
           text: `${(config.returnDepth * METERS_TO_INCHES).toFixed(0)}`,
-          start: [leftReturnPanelX, depthY, 0],
-          end: [leftReturnPanelX, depthY, -config.returnDepth],
+          start: [pivotX, depthY, pivotZ],
+          end: [pivotX - rotatedOffsetX * 2, depthY, pivotZ + rotatedOffsetZ * 2],
           fontSize: labelFontSize,
           color: COLORS.measurement,
           textPosition: [
-            leftReturnPanelX + measurementOffset,
-            depthY,
-            -config.returnDepth / 2,
+            pivotX - rotatedOffsetX,
+            depthY + measurementOffset,
+            pivotZ + rotatedOffsetZ,
           ],
-          textRotation: [0, Math.PI / 2, 0],
+          textRotation: [0, -angle, 0], // Match panel rotation
         });
         // Left Return Depth Measurement (Bottom)
         const depthYBottom: number = -measurementOffset;
         newMeasurements.push({
           type: "line",
           text: `${(config.returnDepth * METERS_TO_INCHES).toFixed(0)}`,
-          start: [leftReturnPanelX, depthYBottom, 0],
-          end: [leftReturnPanelX, depthYBottom, -config.returnDepth],
+          start: [pivotX, depthYBottom, pivotZ],
+          end: [pivotX - rotatedOffsetX * 2, depthYBottom, pivotZ + rotatedOffsetZ * 2],
           fontSize: labelFontSize,
           color: COLORS.measurement,
           textPosition: [
-            leftReturnPanelX + measurementOffset,
-            depthYBottom,
-            -config.returnDepth / 2,
+            pivotX - rotatedOffsetX,
+            depthYBottom - measurementOffset,
+            pivotZ + rotatedOffsetZ,
           ],
-          textRotation: [0, Math.PI / 2, 0],
+          textRotation: [0, -angle, 0], // Match panel rotation
         });
 
         // Left Return Height Measurement
-        const heightZForReturn: number =
-          -config.returnDepth - measurementOffset;
+        const outerEdgeX = pivotX - rotatedOffsetX * 2;
+        const outerEdgeZ = pivotZ + rotatedOffsetZ * 2;
+
+        // Offset perpendicular to the panel's outer edge
+        const heightMeasurementOffsetX = -measurementOffset * Math.sin(angle);
+        const heightMeasurementOffsetZ = measurementOffset * Math.cos(angle);
+
         newMeasurements.push({
           type: "line",
           text: `${(config.leftReturnHeight * METERS_TO_INCHES).toFixed(0)}`,
-          start: [leftReturnPanelX, 0, heightZForReturn],
-          end: [leftReturnPanelX, config.leftReturnHeight, heightZForReturn],
+          start: [outerEdgeX + heightMeasurementOffsetX, 0, outerEdgeZ + heightMeasurementOffsetZ],
+          end: [outerEdgeX + heightMeasurementOffsetX, config.leftReturnHeight, outerEdgeZ + heightMeasurementOffsetZ],
           fontSize: labelFontSize,
           color: COLORS.measurement,
           textPosition: [
-            leftReturnPanelX + measurementOffset,
+            outerEdgeX + heightMeasurementOffsetX,
             config.leftReturnHeight / 2,
-            heightZForReturn,
+            outerEdgeZ + heightMeasurementOffsetZ + measurementOffset,
           ],
-          textRotation: [0, Math.PI / 2, 0],
+          textRotation: [0, -angle, 0], // Text should align with the panel's rotation
         });
       }
     }
@@ -723,16 +750,28 @@ const Scene = ({
 
     // Right Return Panel
     if (config.rightReturn) {
-      const rightReturnPanelX: number = structureEndX;
+      const pivotX = structureEndX;
+      const pivotY = config.rightReturnHeight / 2;
+      const pivotZ = 0; // This is the front edge of the main structure
+
+      const halfReturnDepth = config.returnDepth / 2;
+      const angle = config.rightReturnAngle; // Angle from the front plane (X-Z plane)
+
+      // Calculate the panel's center position relative to the pivot after rotation
+      // If angle = 0, panel is along -X, center is at (pivotX - halfReturnDepth, pivotY, pivotZ)
+      // If angle = PI/2, panel is along -Z, center is at (pivotX, pivotY, pivotZ - halfReturnDepth)
+      const rotatedOffsetX = halfReturnDepth * Math.cos(angle);
+      const rotatedOffsetZ = -halfReturnDepth * Math.sin(angle);
+
       newElements.push({
         type: "panel",
         size: { width: config.returnDepth, height: config.rightReturnHeight },
         position: [
-          rightReturnPanelX,
-          config.rightReturnHeight / 2,
-          -config.returnDepth / 2,
+          pivotX + rotatedOffsetX,
+          pivotY,
+          pivotZ + rotatedOffsetZ,
         ],
-        rotation: [0, -Math.PI / 2, 0],
+        rotation: [0, angle, 0], // Positive angle for counter-clockwise rotation from -X
         panelType: "return",
         notchConfig:
           config.notchEnabled && config.rightReturnNotchEnabled
@@ -753,50 +792,55 @@ const Scene = ({
         newMeasurements.push({
           type: "line",
           text: `${(config.returnDepth * METERS_TO_INCHES).toFixed(0)}`,
-          start: [rightReturnPanelX, depthY, 0],
-          end: [rightReturnPanelX, depthY, -config.returnDepth],
+          start: [pivotX, depthY, pivotZ],
+          end: [pivotX + rotatedOffsetX * 2, depthY, pivotZ + rotatedOffsetZ * 2],
           fontSize: labelFontSize,
           color: COLORS.measurement,
           textPosition: [
-            rightReturnPanelX - measurementOffset,
-            depthY,
-            -config.returnDepth / 2,
+            pivotX + rotatedOffsetX,
+            depthY + measurementOffset,
+            pivotZ + rotatedOffsetZ,
           ],
-          textRotation: [0, -Math.PI / 2, 0],
+          textRotation: [0, angle, 0], // Match panel rotation
         });
         // Right Return Depth Measurement (Bottom)
         const depthYBottom: number = -measurementOffset;
         newMeasurements.push({
           type: "line",
           text: `${(config.returnDepth * METERS_TO_INCHES).toFixed(0)}`,
-          start: [rightReturnPanelX, -measurementOffset, 0],
-          end: [rightReturnPanelX, -measurementOffset, -config.returnDepth],
+          start: [pivotX, depthYBottom, pivotZ],
+          end: [pivotX + rotatedOffsetX * 2, depthYBottom, pivotZ + rotatedOffsetZ * 2],
           fontSize: labelFontSize,
           color: COLORS.measurement,
           textPosition: [
-            rightReturnPanelX - measurementOffset,
-            depthYBottom,
-            -config.returnDepth / 2,
+            pivotX + rotatedOffsetX,
+            depthYBottom - measurementOffset,
+            pivotZ + rotatedOffsetZ,
           ],
-          textRotation: [0, -Math.PI / 2, 0],
+          textRotation: [0, angle, 0], // Match panel rotation
         });
 
         // Right Return Height Measurement
-        const heightZForReturn: number =
-          -config.returnDepth - measurementOffset;
+        const outerEdgeX = pivotX + rotatedOffsetX * 2;
+        const outerEdgeZ = pivotZ + rotatedOffsetZ * 2;
+
+        // Offset perpendicular to the panel's outer edge
+        const heightMeasurementOffsetX = measurementOffset * Math.sin(angle);
+        const heightMeasurementOffsetZ = measurementOffset * Math.cos(angle);
+
         newMeasurements.push({
           type: "line",
           text: `${(config.rightReturnHeight * METERS_TO_INCHES).toFixed(0)}`,
-          start: [rightReturnPanelX, 0, heightZForReturn],
-          end: [rightReturnPanelX, config.rightReturnHeight, heightZForReturn],
+          start: [outerEdgeX + heightMeasurementOffsetX, 0, outerEdgeZ + heightMeasurementOffsetZ],
+          end: [outerEdgeX + heightMeasurementOffsetX, config.rightReturnHeight, outerEdgeZ + heightMeasurementOffsetZ],
           fontSize: labelFontSize,
           color: COLORS.measurement,
           textPosition: [
-            rightReturnPanelX + measurementOffset,
+            outerEdgeX + heightMeasurementOffsetX,
             config.rightReturnHeight / 2,
-            heightZForReturn,
+            outerEdgeZ + heightMeasurementOffsetZ + measurementOffset,
           ],
-          textRotation: [0, -Math.PI / 2, 0],
+          textRotation: [0, angle, 0], // Text should align with the panel's rotation
         });
       }
     }
@@ -805,7 +849,7 @@ const Scene = ({
     if (config.backPanel) {
       newElements.push({
         type: "panel",
-        size: { width: totalStructureWidth, height: config.backPanelHeight },
+        size: { width: config.backPanelWidth, height: config.backPanelHeight }, // Use backPanelWidth
         position: [0, config.backPanelHeight / 2, -config.returnDepth], // Centered X, half height Y, at the back of return depth
         rotation: [0, Math.PI, 0], // Rotate 180 degrees around Y to face forward
         panelType: "back",
@@ -819,13 +863,13 @@ const Scene = ({
           config.backPanelHeight + measurementOffset;
         newMeasurements.push({
           type: "line",
-          text: `${(totalStructureWidth * METERS_TO_INCHES).toFixed(0)}`,
+          text: `${(config.backPanelWidth * METERS_TO_INCHES).toFixed(0)}`, // Use backPanelWidth
           start: [
-            -totalStructureWidth / 2,
+            -config.backPanelWidth / 2, // Use backPanelWidth
             backPanelWidthY,
             -config.returnDepth,
           ],
-          end: [totalStructureWidth / 2, backPanelWidthY, -config.returnDepth],
+          end: [config.backPanelWidth / 2, backPanelWidthY, -config.returnDepth], // Use backPanelWidth
           fontSize: labelFontSize,
           color: COLORS.measurement,
           textPosition: [
@@ -838,7 +882,7 @@ const Scene = ({
 
         // Back Panel Height Measurement
         const backPanelHeightX: number =
-          totalStructureWidth / 2 + measurementOffset;
+          config.backPanelWidth / 2 + measurementOffset; // Use backPanelWidth
         newMeasurements.push({
           type: "line",
           text: `${(config.backPanelHeight * METERS_TO_INCHES).toFixed(0)}`,
@@ -870,6 +914,12 @@ const Scene = ({
         shadow-mapSize-height={2048}
       />
       <Environment preset="city" />
+
+      {/* Background Sphere */}
+      <mesh position={[0, config.height / 2, 0]}> {/* Center the sphere around the layout height */}
+        <sphereGeometry args={[200, 60, 40]} /> {/* Increased radius to 200 */}
+        <meshBasicMaterial map={backgroundTexture} side={THREE.BackSide} /> {/* Render texture on inside */}
+      </mesh>
 
       {elements.map((el, i) => (
         <GlassPanel
@@ -903,7 +953,7 @@ const Scene = ({
           />
         ))}
 
-      <Plane args={[20, 20]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+      <Plane args={[10, 10]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
         <meshStandardMaterial
           color={COLORS.floor}
           roughness={0.6}
@@ -912,7 +962,7 @@ const Scene = ({
       </Plane>
 
       <gridHelper
-        args={[20, 20, 0xcccccc, 0x888888]}
+        args={[10, 10, 0xcccccc, 0x888888]}
         position={[0, 0.001, 0]}
       />
 
@@ -944,45 +994,19 @@ const getElementWidth = (
   }
 };
 
+// Function to convert meter value back to fractional inches for display
+const getFractionalInches = (meters: number): string => {
+  const inches: number = meters * METERS_TO_INCHES;
+  if (Math.abs(inches - 3 / 8) < 0.001) return "3/8";
+  if (Math.abs(inches - 1 / 2) < 0.001) return "1/2";
+  if (Math.abs(inches - 1 / 4) < 0.001) return "1/4";
+  if (Math.abs(inches - 1 / 8) < 0.001) return "1/8";
+  return inches.toFixed(3);
+};
+
 export default function ShowerConfigurator() {
-  const [config, setConfig] = useState<Config>({
-    height: convertInchesToMeters(55),
-    doorWidth: convertInchesToMeters(26),
-    doorCount: 1,
-    panelDepth: convertInchesToMeters(22),
-    returnDepth: convertInchesToMeters(22),
-    leftReturn: true,
-    rightReturn: false,
-    showEdges: true,
-    leftPanel: false,
-    rightPanel: false,
-    glassType: "frosted",
-    glassThickness: convertInchesToMeters(3 / 8),
-    leftPanelHeight: convertInchesToMeters(55),
-    rightPanelHeight: convertInchesToMeters(55),
-    leftReturnHeight: convertInchesToMeters(55),
-    rightReturnHeight: convertInchesToMeters(55),
-    doorPlacement: "left",
-
-    // New: Back Panel defaults
-    backPanel: false,
-    backPanelHeight: convertInchesToMeters(55), // Defaults to main height
-
-    // Notch Configuration defaults
-    notchEnabled: false,
-    notchHeight: convertInchesToMeters(6),
-    notchDistanceFromBottom: convertInchesToMeters(0),
-    notchSide: "left",
-
-    leftPanelNotchEnabled: false,
-    leftPanelNotchWidth: convertInchesToMeters(4), // Default small width
-    rightPanelNotchEnabled: false,
-    rightPanelNotchWidth: convertInchesToMeters(4),
-    leftReturnNotchEnabled: false,
-    leftReturnNotchWidth: convertInchesToMeters(4),
-    rightReturnNotchEnabled: false,
-    rightReturnNotchWidth: convertInchesToMeters(4),
-  });
+  const [config, setConfig] = useState<Config>(PREDEFINED_LAYOUTS["default"]);
+  const [currentLayoutName, setCurrentLayoutName] = useState<string>("default");
 
   const [uiState, setUiState] = useState<UiState>({
     isAnimating: false,
@@ -993,6 +1017,38 @@ export default function ShowerConfigurator() {
   const [glInstance, setGlInstance] = useState<THREE.WebGLRenderer | null>(
     null
   );
+
+  // New state to track if backPanelWidth has been manually set
+  const [isBackPanelWidthManuallySet, setIsBackPanelWidthManuallySet] = useState(false);
+
+  // Effect to synchronize backPanelWidth when backPanel is unchecked or when not manually set
+  useEffect(() => {
+    // Calculate the current total front structure width
+    const currentTotalStructureWidth =
+      (config.leftPanel ? config.panelDepth : 0) +
+      config.doorCount * config.doorWidth +
+      (config.rightPanel ? config.panelDepth : 0);
+
+    // Only update backPanelWidth if it's not manually set OR if backPanel is currently unchecked (forcing synchronization)
+    if (!isBackPanelWidthManuallySet || !config.backPanel) {
+      if (config.backPanelWidth !== currentTotalStructureWidth) {
+        setConfig(prev => ({
+          ...prev,
+          backPanelWidth: currentTotalStructureWidth
+        }));
+      }
+    }
+  }, [
+    config.backPanel, // If backPanel checkbox changes
+    config.doorWidth,
+    config.doorCount,
+    config.panelDepth,
+    config.leftPanel,
+    config.rightPanel,
+    config.backPanelWidth, // To detect external changes (though this effect is the source)
+    isBackPanelWidthManuallySet // To react to manual set flag changes
+  ]);
+
 
   const handleConfigChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
@@ -1043,12 +1099,29 @@ export default function ShowerConfigurator() {
             );
             (newConfig as any)[`${panelName}NotchWidth`] = defaultWidth;
           }
+        } else if (name === "backPanel") {
+          newConfig.backPanel = checked;
+          const currentTotalStructureWidth =
+            (newConfig.leftPanel ? newConfig.panelDepth : 0) +
+            newConfig.doorCount * newConfig.doorWidth +
+            (newConfig.rightPanel ? newConfig.panelDepth : 0);
+
+          if (checked) {
+            // When back panel is enabled, initialize its width and reset manual flag
+            newConfig.backPanelWidth = currentTotalStructureWidth;
+            setIsBackPanelWidthManuallySet(false); // Reset to automatic when enabling
+          } else {
+            // When back panel is disabled, ensure it synchronizes and reset manual flag
+            newConfig.backPanelWidth = currentTotalStructureWidth;
+            setIsBackPanelWidthManuallySet(false);
+          }
         } else {
           (newConfig as any)[name] = checked;
         }
       } else if (name === "doorCount") {
         const numValue = parseInt(value, 10);
-        newConfig.doorCount = Math.max(1, isNaN(numValue) ? 1 : numValue);
+        // Allow 0 doors
+        newConfig.doorCount = Math.max(0, isNaN(numValue) ? 0 : numValue);
       } else if (name === "glassThickness") {
         let thicknessInInches: number;
         switch (value) {
@@ -1070,10 +1143,29 @@ export default function ShowerConfigurator() {
         newConfig.glassThickness = convertInchesToMeters(thicknessInInches);
       } else if (name === "doorPlacement" || name === "notchSide") {
         (newConfig as any)[name] = value;
-      } else {
-        // For all other number inputs (dimensions, including individual notch widths)
+      } else if (name === "leftReturnAngle" || name === "rightReturnAngle") {
+        // Convert selected degree value to radians for the model
+        (newConfig as any)[name] = degreesToRadians(parseFloat(value));
+      }
+      else if (name === "predefinedLayout") { // Handle predefined layout selection
+        const selectedLayout = PREDEFINED_LAYOUTS[value as keyof typeof PREDEFINED_LAYOUTS];
+        if (selectedLayout) {
+          newConfig = { ...selectedLayout }; // Load the predefined layout
+          setCurrentLayoutName(value); // Update the dropdown's selected value
+          // Optionally reset UI state related to individual heights if the predefined layout
+          // doesn't explicitly manage them or if we want to force consistency.
+          setUiState(prevUi => ({ ...prevUi, enableIndividualHeights: false }));
+        }
+      }
+      else {
+        // For all other number inputs (dimensions)
         const newValueInMeters: number = parseFloat(value) * INCHES_TO_METERS;
         (newConfig as any)[name] = newValueInMeters;
+
+        // If it's the backPanelWidth input, set the manual override flag
+        if (name === "backPanelWidth") {
+          setIsBackPanelWidthManuallySet(true);
+        }
 
         if (!uiState.enableIndividualHeights && name === "height") {
           newConfig.leftPanelHeight = newValueInMeters;
@@ -1142,6 +1234,10 @@ export default function ShowerConfigurator() {
       config.rightReturn ? config.returnDepth : 0
     ) * METERS_TO_INCHES;
 
+  // Helper to convert radians back to degrees for display
+  const radiansToDegrees = (radians: number): string =>
+    (radians * 180 / Math.PI).toFixed(0);
+
   return (
     <div
       style={{
@@ -1179,6 +1275,50 @@ export default function ShowerConfigurator() {
         >
           Glass Layout Configurator
         </h2>
+
+        {/* Predefined Layouts Dropdown */}
+        <div>
+          <h3 style={{ color: COLORS.text, marginBottom: "12px", fontSize: "1.1rem" }}>
+            Predefined Layouts
+          </h3>
+          <select
+            name="predefinedLayout"
+            onChange={handleConfigChange}
+            value={currentLayoutName}
+            style={{
+              width: "100%",
+              padding: "10px",
+              border: `1px solid ${COLORS.glassEdge}`,
+              borderRadius: "6px",
+              backgroundColor: "#fff",
+              color: COLORS.text,
+              fontSize: "1rem",
+              appearance: "none",
+              backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23${COLORS.text.substring(1)}'%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3Csvg%3E")`,
+              backgroundRepeat: "no-repeat",
+              backgroundPosition: "right 10px center",
+              backgroundSize: "18px",
+              boxShadow: "0 2px 5px rgba(0,0,0,0.05)",
+              cursor: "pointer",
+              transition: "border-color 0.3s ease, box-shadow 0.3s ease",
+            }}
+            onFocus={(e: React.FocusEvent<HTMLSelectElement>) => {
+              e.currentTarget.style.borderColor = COLORS.inputFocus;
+              e.currentTarget.style.boxShadow = `0 0 0 3px ${COLORS.inputFocus}40`;
+            }}
+            onBlur={(e: React.FocusEvent<HTMLSelectElement>) => {
+              e.currentTarget.style.borderColor = COLORS.glassEdge;
+              e.currentTarget.style.boxShadow = "0 2px 5px rgba(0,0,0,0.05)";
+            }}
+          >
+            {Object.keys(PREDEFINED_LAYOUTS).map((key) => (
+              <option key={key} value={key}>
+                {key.replace(/-/g, ' ').replace(/(^\w|\s\w)/g, (m) => m.toUpperCase())}
+              </option>
+            ))}
+          </select>
+        </div>
+
 
         {/* Glass Type Selector */}
         <div>
@@ -1370,7 +1510,7 @@ export default function ShowerConfigurator() {
             type="number"
             name="doorCount"
             step="1"
-            min="1"
+            min="0"
             value={config.doorCount}
             onChange={handleConfigChange}
             style={{
@@ -1502,6 +1642,94 @@ export default function ShowerConfigurator() {
             </label>
           ))}
         </div>
+
+        {/* New Angle Controls for Return Panels */}
+        {config.leftReturn && (
+          <div style={{ marginTop: "25px" }}>
+            <h3 style={{ color: COLORS.text, marginBottom: "12px", fontSize: "1.1rem" }}>
+              Left Return Angle:
+            </h3>
+            <select
+              name="leftReturnAngle"
+              value={radiansToDegrees(config.leftReturnAngle)}
+              onChange={handleConfigChange}
+              style={{
+                width: "100%",
+                padding: "10px",
+                border: `1px solid ${COLORS.glassEdge}`,
+                borderRadius: "6px",
+                backgroundColor: "#fff",
+                color: COLORS.text,
+                fontSize: "1rem",
+                appearance: "none",
+                backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23${COLORS.text.substring(1)}'%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3Csvg%3E")`,
+                backgroundRepeat: "no-repeat",
+                backgroundPosition: "right 10px center",
+                backgroundSize: "18px",
+                boxShadow: "0 2px 5px rgba(0,0,0,0.05)",
+                cursor: "pointer",
+                transition: "border-color 0.3s ease, box-shadow 0.3s ease",
+            }}
+            onFocus={(e: React.FocusEvent<HTMLSelectElement>) => {
+              e.currentTarget.style.borderColor = COLORS.inputFocus;
+              e.currentTarget.style.boxShadow = `0 0 0 3px ${COLORS.inputFocus}40`;
+            }}
+            onBlur={(e: React.FocusEvent<HTMLSelectElement>) => {
+              e.currentTarget.style.borderColor = COLORS.glassEdge;
+              e.currentTarget.style.boxShadow = "0 2px 5px rgba(0,0,0,0.05)";
+            }}
+          >
+              <option value="90">90 Degrees</option>
+              <option value="60">60 Degrees</option>
+              <option value="40">40 Degrees</option>
+              <option value="30">30 Degrees</option>
+            </select>
+          </div>
+        )}
+
+        {config.rightReturn && (
+          <div style={{ marginTop: "25px" }}>
+            <h3 style={{ color: COLORS.text, marginBottom: "12px", fontSize: "1.1rem" }}>
+              Right Return Angle:
+            </h3>
+            <select
+              name="rightReturnAngle"
+              value={radiansToDegrees(config.rightReturnAngle)}
+              onChange={handleConfigChange}
+              style={{
+                width: "100%",
+                padding: "10px",
+                border: `1px solid ${COLORS.glassEdge}`,
+                borderRadius: "6px",
+                backgroundColor: "#fff",
+                color: COLORS.text,
+                fontSize: "1rem",
+                appearance: "none",
+                backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23${COLORS.text.substring(1)}'%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3Csvg%3E")`,
+                backgroundRepeat: "no-repeat",
+                backgroundPosition: "right 10px center",
+                backgroundSize: "18px",
+                boxShadow: "0 2px 5px rgba(0,0,0,0.05)",
+                cursor: "pointer",
+                transition: "border-color 0.3s ease, box-shadow 0.3s ease",
+            }}
+            onFocus={(e: React.FocusEvent<HTMLSelectElement>) => {
+              e.currentTarget.style.borderColor = COLORS.inputFocus;
+              e.currentTarget.style.boxShadow = `0 0 0 3px ${COLORS.inputFocus}40`;
+            }}
+            onBlur={(e: React.FocusEvent<HTMLSelectElement>) => {
+              e.currentTarget.style.borderColor = COLORS.glassEdge;
+              e.currentTarget.style.boxShadow = "0 2px 5px rgba(0,0,0,0.05)";
+            }}
+          >
+                <option value="90">90 Degrees</option>
+              <option value="60">60 Degrees</option>
+              <option value="40">40 Degrees</option>
+              <option value="30">30 Degrees</option>
+            </select>
+          </div>
+        )}
+
 
         {/* New checkbox for individual height control */}
         <label
@@ -1637,6 +1865,55 @@ export default function ShowerConfigurator() {
             />
           </div>
         ))}
+
+        {/* New Back Panel Width Control */}
+        <div>
+          <label
+            style={{
+              display: "block",
+              marginBottom: "8px",
+              color: COLORS.text,
+              fontWeight: "600",
+              fontSize: "1.1rem",
+              opacity: config.backPanel ? 1 : 0.5, // Dim label if disabled
+            }}
+          >
+            Back Panel Width (inches):
+          </label>
+          <input
+            type="number"
+            name="backPanelWidth"
+            step={0.5}
+            value={(config.backPanelWidth * METERS_TO_INCHES).toFixed(2)}
+            onChange={handleConfigChange}
+            disabled={!config.backPanel} // Only enabled if backPanel is checked
+            style={{
+              width: "100%",
+              padding: "10px",
+              border: `1px solid ${COLORS.glassEdge}`,
+              borderRadius: "6px",
+              backgroundColor: "#fff",
+              color: COLORS.text,
+              fontSize: "1rem",
+              boxShadow: "0 2px 5px rgba(0,0,0,0.05)",
+              transition: "border-color 0.3s ease, box-shadow 0.3s ease, opacity 0.3s ease",
+              opacity: config.backPanel ? 1 : 0.5,
+              cursor: config.backPanel ? "text" : "not-allowed",
+            }}
+            onFocus={(e: React.FocusEvent<HTMLInputElement>) => {
+              if (config.backPanel) {
+                e.currentTarget.style.borderColor = COLORS.inputFocus;
+                e.currentTarget.style.boxShadow = `0 0 0 3px ${COLORS.inputFocus}40`;
+              }
+            }}
+            onBlur={(e: React.FocusEvent<HTMLInputElement>) => {
+              if (config.backPanel) {
+                e.currentTarget.style.borderColor = COLORS.glassEdge;
+                e.currentTarget.style.boxShadow = "0 2px 5px rgba(0,0,0,0.05)";
+              }
+            }}
+          />
+        </div>
 
         {/* Notch Configuration Controls */}
         <div
@@ -1855,12 +2132,14 @@ export default function ShowerConfigurator() {
                 label: "Left Return Notch",
                 nameEnabled: "leftReturnNotchEnabled",
                 nameWidth: "leftReturnNotchWidth",
+                isReturn: true, // Added for conditional rendering
                 panelExists: config.leftReturn,
               },
               {
                 label: "Right Return Notch",
                 nameEnabled: "rightReturnNotchEnabled",
                 nameWidth: "rightReturnNotchWidth",
+                isReturn: true, // Added for conditional rendering
                 panelExists: config.rightReturn,
               },
             ].map(
@@ -2069,11 +2348,62 @@ export default function ShowerConfigurator() {
           </button>
         </div>
 
-        {/* Current Configuration Summary */}
+       
+      </div>
+
+      {/* 3D Viewer */}
+      <div style={{ flex: 1, position: "relative" }}>
+        <Canvas
+          shadows
+          gl={{ preserveDrawingBuffer: true }}
+          camera={{ position: [0, 2, 5], fov: 60 }}
+        >
+          <Scene
+            config={config}
+            isAnimating={uiState.isAnimating}
+            showMeasurements={uiState.showMeasurements}
+            onGlReady={setGlInstance}
+          />
+        </Canvas>
+        <button
+          onClick={handleDownloadImage}
+          style={{
+            position: "absolute",
+            top: "20px",
+            right: "20px",
+            padding: "12px 15px",
+            backgroundColor: COLORS.text,
+            color: "#fff",
+            border: "none",
+            borderRadius: "6px",
+            cursor: "pointer",
+            fontWeight: "bold",
+            transition: "background-color 0.3s ease, transform 0.1s ease-out",
+            boxShadow: "0 4px 8px rgba(0,0,0,0.1)",
+            zIndex: 10,
+          }}
+          onMouseOver={(e: React.MouseEvent<HTMLButtonElement>) =>
+            (e.currentTarget.style.backgroundColor = COLORS.buttonHover)
+          }
+          onMouseOut={(e: React.MouseEvent<HTMLButtonElement>) =>
+            (e.currentTarget.style.backgroundColor = COLORS.text)
+          }
+          onMouseDown={(e: React.MouseEvent<HTMLButtonElement>) =>
+            (e.currentTarget.style.transform = "translateY(1px)")
+          }
+          onMouseUp={(e: React.MouseEvent<HTMLButtonElement>) =>
+            (e.currentTarget.style.transform = "translateY(0)")
+          }
+        >
+          Download Image
+        </button>
+         {/* Current Configuration Summary */}
         <div
           style={{
-            marginTop: "20px",
-            padding: "20px",
+            position: "absolute",
+            top: "80px",
+            right: "20px",
+            padding: "14px",
             backgroundColor: "#fff",
             borderRadius: "8px",
             border: `1px solid ${COLORS.glassEdge}`,
@@ -2083,7 +2413,6 @@ export default function ShowerConfigurator() {
           <h3
             style={{
               color: COLORS.text,
-              marginBottom: "15px",
               fontSize: "1.2rem",
               fontWeight: "600",
             }}
@@ -2154,6 +2483,24 @@ export default function ShowerConfigurator() {
               {config.doorPlacement.charAt(0).toUpperCase() +
                 config.doorPlacement.slice(1)}
             </p>
+            {config.leftReturn && (
+              <p>
+                <span style={{ fontWeight: "bold" }}>Left Return Angle:</span>{" "}
+                {radiansToDegrees(config.leftReturnAngle)} Degrees
+              </p>
+            )}
+            {config.rightReturn && (
+              <p>
+                <span style={{ fontWeight: "bold" }}>Right Return Angle:</span>{" "}
+                {radiansToDegrees(config.rightReturnAngle)} Degrees
+              </p>
+            )}
+            {config.backPanel && (
+              <p>
+                <span style={{ fontWeight: "bold" }}>Back Panel Width:</span>{" "}
+                {(config.backPanelWidth * METERS_TO_INCHES).toFixed(2)} inches
+              </p>
+            )}
             {config.notchEnabled && (
               <>
                 <p>
@@ -2222,54 +2569,7 @@ export default function ShowerConfigurator() {
             )}
           </div>
         </div>
-      </div>
 
-      {/* 3D Viewer */}
-      <div style={{ flex: 1, position: "relative" }}>
-        <Canvas
-          shadows
-          gl={{ preserveDrawingBuffer: true }}
-          camera={{ position: [0, 2, 5], fov: 60 }}
-        >
-          <Scene
-            config={config}
-            isAnimating={uiState.isAnimating}
-            showMeasurements={uiState.showMeasurements}
-            onGlReady={setGlInstance}
-          />
-        </Canvas>
-        <button
-          onClick={handleDownloadImage}
-          style={{
-            position: "absolute",
-            top: "20px",
-            right: "20px",
-            padding: "12px 15px",
-            backgroundColor: COLORS.text,
-            color: "#fff",
-            border: "none",
-            borderRadius: "6px",
-            cursor: "pointer",
-            fontWeight: "bold",
-            transition: "background-color 0.3s ease, transform 0.1s ease-out",
-            boxShadow: "0 4px 8px rgba(0,0,0,0.1)",
-            zIndex: 10,
-          }}
-          onMouseOver={(e: React.MouseEvent<HTMLButtonElement>) =>
-            (e.currentTarget.style.backgroundColor = COLORS.buttonHover)
-          }
-          onMouseOut={(e: React.MouseEvent<HTMLButtonElement>) =>
-            (e.currentTarget.style.backgroundColor = COLORS.text)
-          }
-          onMouseDown={(e: React.MouseEvent<HTMLButtonElement>) =>
-            (e.currentTarget.style.transform = "translateY(1px)")
-          }
-          onMouseUp={(e: React.MouseEvent<HTMLButtonElement>) =>
-            (e.currentTarget.style.transform = "translateY(0)")
-          }
-        >
-          Download Image
-        </button>
         <div
           style={{
             position: "absolute",

@@ -7,8 +7,8 @@ export default function Home() {
   return (
     <div>
       <Head>
-        <title>Shower Door Configurator</title>
-        <meta name="description" content="Custom shower door designer" />
+        <title>Glass Layout Configurator</title>
+        <meta name="description" content="Glass Layout Configurator" />
       </Head>
 
       <main>
